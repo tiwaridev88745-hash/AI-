@@ -1,0 +1,2052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ResQ-Mesh | AI Multi-Agent Crisis Command Centre</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              950: '#070C1B',
+              900: '#0A1128',
+              850: '#0F1A3A',
+              800: '#15224F',
+              700: '#1C2E66',
+              600: '#2A438C'
+            },
+            crimson: {
+              500: '#FF3B30',
+              600: '#E0261B',
+              glow: 'rgba(255, 59, 48, 0.4)'
+            },
+            amber: {
+              500: '#FF9500',
+              600: '#D97706'
+            },
+            cyan: {
+              400: '#00F2FE',
+              500: '#00D2DE'
+            }
+          },
+          fontFamily: {
+            mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+            sans: ['Inter', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 15px rgba(255, 59, 48, 0.7), inset 0 0 10px rgba(255, 59, 48, 0.4); }
+      50% { box-shadow: 0 0 30px rgba(255, 59, 48, 0.95), inset 0 0 20px rgba(255, 59, 48, 0.7); }
+    }
+    .pulse-critical {
+      animation: pulseGlow 1.8s infinite;
+    }
+    @keyframes beacon {
+      0% { transform: scale(0.9); opacity: 0.9; }
+      50% { transform: scale(1.6); opacity: 0; }
+      100% { transform: scale(0.9); opacity: 0; }
+    }
+    .beacon-ring {
+      animation: beacon 2s infinite ease-out;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0A1128;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1C2E66;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #FF9500;
+    }
+    /* Leaflet Dark Theme Overlay */
+    .leaflet-container {
+      background: #070C1B !important;
+      font-family: inherit;
+    }
+    .leaflet-tile {
+      filter: brightness(0.65) invert(1) contrast(3.5) hue-rotate(200deg) saturate(0.35);
+    }
+    .custom-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body class="bg-navy-950 text-slate-100 font-sans antialiased overflow-x-hidden min-h-screen">
+
+  <!-- ================= TOP NAVIGATION ================= -->
+  <header class="border-b border-navy-700/60 bg-navy-900/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="switchView('landing')">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-crimson-500 to-amber-500 flex items-center justify-center shadow-lg shadow-crimson-500/20">
+          <i data-lucide="shield-alert" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xl font-black tracking-wider text-white">ResQ<span class="text-amber-500">-Mesh</span></span>
+            <span class="px-2 py-0.5 text-[10px] uppercase font-mono font-bold bg-crimson-500/20 text-crimson-500 border border-crimson-500/40 rounded">Crisis AI</span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-mono">Multi-Agent Crisis Command System</p>
+        </div>
+      </div>
+
+      <!-- Navigation tabs -->
+      <nav class="hidden md:flex items-center space-x-1 bg-navy-950/80 p-1 rounded-xl border border-navy-700/60">
+        <button id="nav-landing" onclick="switchView('landing')" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-300 hover:text-white">
+          Overview
+        </button>
+        <button id="nav-dashboard" onclick="switchView('dashboard')" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all bg-navy-800 text-amber-400 border border-amber-500/30 shadow-sm flex items-center space-x-1.5">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+          <span>Command Center</span>
+        </button>
+        <button id="nav-agents" onclick="switchView('agents')" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-300 hover:text-white flex items-center space-x-1.5">
+          <i data-lucide="bot" class="w-4 h-4"></i>
+          <span>Agent Fleet</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        </button>
+        <button id="nav-analytics" onclick="switchView('analytics')" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-300 hover:text-white flex items-center space-x-1.5">
+          <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+          <span>Analytics</span>
+        </button>
+      </nav>
+
+      <!-- Action buttons -->
+      <div class="flex items-center space-x-3">
+        <button onclick="triggerSimulation()" class="relative group px-4 py-2 bg-gradient-to-r from-crimson-600 to-amber-600 hover:from-crimson-500 hover:to-amber-500 text-white rounded-lg text-sm font-semibold shadow-lg shadow-crimson-600/30 transition-all flex items-center space-x-2">
+          <i data-lucide="zap" class="w-4 h-4 text-amber-200 animate-bounce"></i>
+          <span>Simulate Incident</span>
+        </button>
+        <div class="hidden xl:flex items-center space-x-2 border-l border-navy-700 pl-3">
+          <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+          <span class="text-xs font-mono text-emerald-400">DEFCON 2 • ACTIVE</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= VIEW 1: LANDING PAGE ================= -->
+  <main id="view-landing" class="hidden">
+    <!-- Hero Section -->
+    <section class="relative overflow-hidden py-20 lg:py-28 bg-gradient-to-b from-navy-900 via-navy-950 to-navy-950 border-b border-navy-800">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-crimson-600/10 via-transparent to-transparent pointer-events-none"></div>
+      
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+        <div class="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono mb-6">
+          <i data-lucide="flame" class="w-4 h-4 text-amber-500"></i>
+          <span>Hack2Skill 2026 • Disaster & Public Safety Track</span>
+        </div>
+
+        <h1 class="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white mb-6 leading-tight">
+          Turning Crisis Chaos Into <br>
+          <span class="bg-gradient-to-r from-crimson-500 via-amber-400 to-cyan-400 bg-clip-text text-transparent">
+            Autonomous Action Plans
+          </span>
+        </h1>
+
+        <p class="max-w-3xl mx-auto text-lg sm:text-xl text-slate-300 mb-10 leading-relaxed font-light">
+          When disaster strikes, response time is crippled by fragmented data, viral hoaxes, and redundant calls. 
+          <span class="text-white font-medium">ResQ-Mesh</span> deploys a collaborative fleet of five specialized AI agents to 
+          ingest, verify, deduplicate, prioritize, and dispatch life-saving instructions in seconds.
+        </p>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <button onclick="switchView('dashboard')" class="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-crimson-600 to-amber-600 hover:from-crimson-500 hover:to-amber-500 text-white rounded-xl text-base font-bold shadow-xl shadow-crimson-600/25 transition-all flex items-center justify-center space-x-2">
+            <span>Launch Command Dashboard</span>
+            <i data-lucide="arrow-right" class="w-5 h-5"></i>
+          </button>
+          <button onclick="switchView('agents')" class="w-full sm:w-auto px-6 py-3.5 bg-navy-850 hover:bg-navy-800 text-slate-200 border border-navy-700 rounded-xl text-base font-medium transition-all flex items-center justify-center space-x-2">
+            <i data-lucide="cpu" class="w-5 h-5 text-cyan-400"></i>
+            <span>Explore 5-Agent Pipeline</span>
+          </button>
+        </div>
+
+        <!-- Metric highlights -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 text-left">
+          <div class="bg-navy-900/80 border border-navy-800 p-5 rounded-2xl backdrop-blur">
+            <div class="text-3xl font-extrabold text-crimson-500 font-mono mb-1">&lt; 5s</div>
+            <div class="text-xs text-slate-400">Mean Triage Latency (vs. 25 min manual)</div>
+          </div>
+          <div class="bg-navy-900/80 border border-navy-800 p-5 rounded-2xl backdrop-blur">
+            <div class="text-3xl font-extrabold text-amber-400 font-mono mb-1">94.6%</div>
+            <div class="text-xs text-slate-400">Fake & Duplicate Filtering Accuracy</div>
+          </div>
+          <div class="bg-navy-900/80 border border-navy-800 p-5 rounded-2xl backdrop-blur">
+            <div class="text-3xl font-extrabold text-cyan-400 font-mono mb-1">5 Agents</div>
+            <div class="text-xs text-slate-400">Collaborative Micro-Agent Architecture</div>
+          </div>
+          <div class="bg-navy-900/80 border border-navy-800 p-5 rounded-2xl backdrop-blur">
+            <div class="text-3xl font-extrabold text-emerald-400 font-mono mb-1">1 Click</div>
+            <div class="text-xs text-slate-400">Responder SOP & Route Dispatch</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Problem & Why It Matters -->
+    <section class="py-20 bg-navy-950 border-b border-navy-800/80">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center max-w-3xl mx-auto mb-16">
+          <h2 class="text-xs font-mono font-bold tracking-widest uppercase text-crimson-500 mb-3">The Problem</h2>
+          <h3 class="text-3xl sm:text-4xl font-extrabold text-white">Why Emergency Command Centres Stumble</h3>
+          <p class="mt-4 text-slate-400 text-sm sm:text-base">During floods, industrial blazes, or urban accidents, dispatchers face high cognitive overload from asynchronous noise.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div class="bg-navy-900/50 border border-navy-800 p-6 rounded-2xl relative overflow-hidden">
+            <div class="w-12 h-12 rounded-xl bg-crimson-500/10 border border-crimson-500/30 flex items-center justify-center text-crimson-400 mb-5">
+              <i data-lucide="radio" class="w-6 h-6"></i>
+            </div>
+            <h4 class="text-lg font-bold text-white mb-2">Fragmented Feeds</h4>
+            <p class="text-sm text-slate-400 leading-relaxed">Critical SOS calls arrive simultaneously on Twitter, WhatsApp, police 112 lines, and local weather radar. No single operator can correlate them fast enough.</p>
+          </div>
+
+          <div class="bg-navy-900/50 border border-navy-800 p-6 rounded-2xl relative overflow-hidden">
+            <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-5">
+              <i data-lucide="copy" class="w-6 h-6"></i>
+            </div>
+            <h4 class="text-lg font-bold text-white mb-2">Fake & Duplicate Spam</h4>
+            <p class="text-sm text-slate-400 leading-relaxed">40% of emergency social posts during storms are 3-year-old viral images, rumors, or 50 callers reporting the exact same overturned truck.</p>
+          </div>
+
+          <div class="bg-navy-900/50 border border-navy-800 p-6 rounded-2xl relative overflow-hidden">
+            <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-5">
+              <i data-lucide="truck" class="w-6 h-6"></i>
+            </div>
+            <h4 class="text-lg font-bold text-white mb-2">Misallocated Vehicles</h4>
+            <p class="text-sm text-slate-400 leading-relaxed">In high confusion, three boats get sent to one minor waterlogged alley while 20 people trapped on a collapsing roof receive zero assistance.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works (4 Steps) -->
+    <section class="py-20 bg-navy-900/40 border-b border-navy-800/80">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center max-w-3xl mx-auto mb-16">
+          <h2 class="text-xs font-mono font-bold tracking-widest uppercase text-amber-400 mb-3">Workflow</h2>
+          <h3 class="text-3xl sm:text-4xl font-extrabold text-white">How ResQ-Mesh Works In 4 Steps</h3>
+          <p class="mt-4 text-slate-400 text-sm sm:text-base">Autonomous agents continuously process incoming data in under 5 seconds.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
+          <div class="bg-navy-850 border border-navy-700/80 p-6 rounded-2xl relative">
+            <div class="text-4xl font-black font-mono text-navy-700 mb-4">01</div>
+            <div class="text-amber-400 font-bold text-lg mb-2">1. Ingest Everywhere</div>
+            <p class="text-xs text-slate-400 leading-relaxed">Scrapes citizen social feeds, emergency CAD logs, CCTV streams, and Doppler weather radar every 3 seconds.</p>
+          </div>
+          <div class="bg-navy-850 border border-navy-700/80 p-6 rounded-2xl relative">
+            <div class="text-4xl font-black font-mono text-navy-700 mb-4">02</div>
+            <div class="text-cyan-400 font-bold text-lg mb-2">2. Verify & Deduplicate</div>
+            <p class="text-xs text-slate-400 leading-relaxed">Reverse searches image metadata, cross-checks geolocation coordinates, and merges redundant posts into 1 incident cluster.</p>
+          </div>
+          <div class="bg-navy-850 border border-navy-700/80 p-6 rounded-2xl relative">
+            <div class="text-4xl font-black font-mono text-navy-700 mb-4">03</div>
+            <div class="text-crimson-400 font-bold text-lg mb-2">3. Severity Ranking</div>
+            <p class="text-xs text-slate-400 leading-relaxed">Multi-factor scoring algorithm evaluates human casualty vulnerability, gas/electrical hazards, and water depth.</p>
+          </div>
+          <div class="bg-navy-850 border border-navy-700/80 p-6 rounded-2xl relative">
+            <div class="text-4xl font-black font-mono text-navy-700 mb-4">04</div>
+            <div class="text-emerald-400 font-bold text-lg mb-2">4. Action Blueprint</div>
+            <p class="text-xs text-slate-400 leading-relaxed">Synthesizes responder teams (NDRF, EMS, Fire), computes ETA, safe route corridors, and exports actionable dispatch SOPs.</p>
+          </div>
+        </div>
+
+        <div class="mt-12 text-center">
+          <button onclick="switchView('dashboard')" class="px-8 py-3 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold rounded-xl shadow-lg shadow-amber-500/20 transition-all">
+            Enter Live Command Dashboard &rarr;
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= VIEW 2: COMMAND DASHBOARD (MAIN SCREEN) ================= -->
+  <main id="view-dashboard" class="max-w-7xl mx-auto px-3 sm:px-6 py-5">
+    
+    <!-- Top Filter & Control Toolbar -->
+    <div class="bg-navy-900 border border-navy-700/70 rounded-2xl p-4 mb-5 shadow-xl">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        
+        <!-- Left: Quick Filter Pills -->
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center mr-1">
+            <i data-lucide="filter" class="w-3.5 h-3.5 mr-1 text-amber-500"></i> Filters:
+          </span>
+
+          <!-- Disaster Type Filter -->
+          <select id="filter-type" onchange="applyFilters()" class="bg-navy-950 border border-navy-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500 font-medium">
+            <option value="ALL">All Disasters</option>
+            <option value="Flood">🌊 Floods</option>
+            <option value="Fire">🔥 Fires</option>
+            <option value="Accident">🚗 Accidents</option>
+            <option value="Structural">🏚️ Structural/Hazards</option>
+          </select>
+
+          <!-- Severity Filter -->
+          <select id="filter-severity" onchange="applyFilters()" class="bg-navy-950 border border-navy-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500 font-medium">
+            <option value="ALL">All Severities</option>
+            <option value="CRITICAL">🔴 Critical Only</option>
+            <option value="HIGH">🟠 High</option>
+            <option value="MEDIUM">🟡 Medium</option>
+            <option value="LOW">🟢 Low</option>
+          </select>
+
+          <!-- Region / City Filter -->
+          <select id="filter-city" onchange="applyFilters()" class="bg-navy-950 border border-navy-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500 font-medium">
+            <option value="ALL">All Cities</option>
+            <option value="Mumbai">Mumbai (Western Zone)</option>
+            <option value="Delhi">Delhi-NCR (Northern Zone)</option>
+            <option value="Bengaluru">Bengaluru (Southern Zone)</option>
+          </select>
+
+          <!-- Status toggle -->
+          <button id="toggle-fake-filter" onclick="toggleIncludeFake()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-navy-700 text-slate-400 bg-navy-950 hover:text-white transition flex items-center space-x-1.5">
+            <span id="fake-filter-indicator" class="w-2 h-2 rounded-full bg-slate-500"></span>
+            <span>Show Filtered Fakes</span>
+          </button>
+        </div>
+
+        <!-- Right: Status Counter & Reset -->
+        <div class="flex items-center space-x-3 ml-auto">
+          <div class="text-xs font-mono text-slate-300 bg-navy-950 px-3 py-1.5 rounded-lg border border-navy-800">
+            Active: <span id="count-active" class="text-amber-400 font-bold">18</span> | 
+            Fakes Filtered: <span id="count-fakes" class="text-crimson-400 font-bold">3</span> | 
+            Merged: <span id="count-merged" class="text-cyan-400 font-bold">5</span>
+          </div>
+          <button onclick="resetFilters()" class="text-xs text-slate-400 hover:text-amber-400 underline font-mono">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3-Column Layout: Left (Incidents Feed) | Center (Interactive Map) | Right (Action Plan & Details) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-[720px]">
+      
+      <!-- ============ COLUMN 1: LIVE INCIDENT STREAM (4 COLS) ============ -->
+      <div class="lg:col-span-4 flex flex-col bg-navy-900 border border-navy-700/70 rounded-2xl overflow-hidden shadow-xl">
+        <!-- Feed Header -->
+        <div class="p-3.5 bg-navy-850/90 border-b border-navy-700/80 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <div class="w-2.5 h-2.5 rounded-full bg-crimson-500 animate-ping"></div>
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">Live Incident Queue</h3>
+          </div>
+          <span id="incident-stream-count" class="text-xs font-mono bg-navy-950 text-slate-300 px-2 py-0.5 rounded border border-navy-700">21 Events</span>
+        </div>
+
+        <!-- Feed List Scrollable -->
+        <div id="incident-list-container" class="flex-1 overflow-y-auto p-3 space-y-2.5 max-h-[720px]">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- ============ COLUMN 2: GEOSPATIAL MAP (5 COLS) ============ -->
+      <div class="lg:col-span-5 flex flex-col bg-navy-900 border border-navy-700/70 rounded-2xl overflow-hidden shadow-xl relative">
+        <!-- Map Header bar -->
+        <div class="p-3.5 bg-navy-850/90 border-b border-navy-700/80 flex items-center justify-between z-10">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="map-pin" class="w-4 h-4 text-cyan-400"></i>
+            <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider">Geospatial Tactical Map</h3>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="recenterMap('Mumbai')" class="text-[11px] px-2 py-0.5 rounded bg-navy-950 text-slate-300 hover:text-white border border-navy-700">Mumbai</button>
+            <button onclick="recenterMap('Delhi')" class="text-[11px] px-2 py-0.5 rounded bg-navy-950 text-slate-300 hover:text-white border border-navy-700">Delhi</button>
+            <button onclick="recenterMap('Bengaluru')" class="text-[11px] px-2 py-0.5 rounded bg-navy-950 text-slate-300 hover:text-white border border-navy-700">Bengaluru</button>
+          </div>
+        </div>
+
+        <!-- Map Container -->
+        <div id="map" class="flex-1 min-h-[460px] w-full z-0"></div>
+
+        <!-- Map Legend Floating Footer -->
+        <div class="p-3 bg-navy-950/90 border-t border-navy-800 text-xs flex flex-wrap items-center justify-between gap-2 z-10">
+          <div class="flex items-center space-x-4">
+            <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-crimson-500 animate-pulse"></span><span class="text-slate-300">Critical</span></span>
+            <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span class="text-slate-300">High</span></span>
+            <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span><span class="text-slate-300">Medium</span></span>
+            <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span><span class="text-slate-300">Low</span></span>
+          </div>
+          <span class="text-[10px] text-slate-400 font-mono">Live Leaflet Tiles &bull; Click marker to view plan</span>
+        </div>
+      </div>
+
+      <!-- ============ COLUMN 3: INCIDENT DETAIL & ACTION PLAN (3 COLS) ============ -->
+      <div class="lg:col-span-3 flex flex-col bg-navy-900 border border-navy-700/70 rounded-2xl overflow-hidden shadow-xl">
+        <!-- Panel Header with Export Button -->
+        <div class="p-3.5 bg-navy-850/90 border-b border-navy-700/80 flex items-center justify-between">
+          <div class="flex items-center space-x-1.5">
+            <i data-lucide="clipboard-check" class="w-4 h-4 text-amber-500"></i>
+            <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider">Tactical Action Plan</h3>
+          </div>
+          <button onclick="exportActionPlan()" class="text-xs px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/40 rounded flex items-center space-x-1 transition">
+            <i data-lucide="download" class="w-3 h-3"></i>
+            <span>Export</span>
+          </button>
+        </div>
+
+        <!-- Detail Card Body -->
+        <div id="detail-panel-body" class="flex-1 overflow-y-auto p-4 space-y-4 max-h-[720px]">
+          <!-- Loaded dynamically based on selected incident -->
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ================= VIEW 3: AGENT FLEET ACTIVITY PANEL ================= -->
+  <main id="view-agents" class="hidden max-w-7xl mx-auto px-4 sm:px-6 py-6">
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h2 class="text-2xl font-black text-white tracking-wide">Multi-Agent Intelligence Network</h2>
+        <p class="text-sm text-slate-400">Autonomous micro-agents collaborating via LangGraph message buses for real-time crisis resolution.</p>
+      </div>
+      <div class="flex items-center space-x-2">
+        <span class="text-xs font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full flex items-center space-x-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span>5/5 Agents Active • Ingestion: 420 events/min</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Agent Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+      
+      <!-- Agent 1: Collector -->
+      <div class="bg-navy-900 border border-navy-700/70 p-4 rounded-xl flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono text-cyan-400 font-bold">AGENT 01</span>
+            <span class="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-400">ONLINE</span>
+          </div>
+          <h4 class="font-bold text-white text-sm mb-1">Data Collector</h4>
+          <p class="text-xs text-slate-400 mb-3">Scrapes citizen SOS, 112 hotline transcripts, Twitter/X geotags, Doppler radar.</p>
+        </div>
+        <div class="pt-3 border-t border-navy-800 text-[11px] font-mono text-slate-300">
+          <div>Latency: <span class="text-emerald-400">0.8s</span></div>
+          <div>Processed: <span class="text-cyan-400">1,492 msgs</span></div>
+        </div>
+      </div>
+
+      <!-- Agent 2: Verifier -->
+      <div class="bg-navy-900 border border-navy-700/70 p-4 rounded-xl flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono text-amber-400 font-bold">AGENT 02</span>
+            <span class="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-400">ONLINE</span>
+          </div>
+          <h4 class="font-bold text-white text-sm mb-1">Verification Agent</h4>
+          <p class="text-xs text-slate-400 mb-3">Detects AI deepfakes, recycled archival photos, cross-references CCTV feeds.</p>
+        </div>
+        <div class="pt-3 border-t border-navy-800 text-[11px] font-mono text-slate-300">
+          <div>Accuracy: <span class="text-emerald-400">96.2%</span></div>
+          <div>Fakes Flagged: <span class="text-crimson-400">142</span></div>
+        </div>
+      </div>
+
+      <!-- Agent 3: Deduplicator -->
+      <div class="bg-navy-900 border border-navy-700/70 p-4 rounded-xl flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono text-cyan-400 font-bold">AGENT 03</span>
+            <span class="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-400">ONLINE</span>
+          </div>
+          <h4 class="font-bold text-white text-sm mb-1">Deduplication</h4>
+          <p class="text-xs text-slate-400 mb-3">Clusters spatio-temporal embeddings (300m radius, 30 min window) via HDBSCAN.</p>
+        </div>
+        <div class="pt-3 border-t border-navy-800 text-[11px] font-mono text-slate-300">
+          <div>Cluster Ratio: <span class="text-amber-400">4.2 : 1</span></div>
+          <div>Duplicates Merged: <span class="text-cyan-400">388</span></div>
+        </div>
+      </div>
+
+      <!-- Agent 4: Severity Triage -->
+      <div class="bg-navy-900 border border-navy-700/70 p-4 rounded-xl flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono text-crimson-400 font-bold">AGENT 04</span>
+            <span class="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-400">ONLINE</span>
+          </div>
+          <h4 class="font-bold text-white text-sm mb-1">Severity Ranking</h4>
+          <p class="text-xs text-slate-400 mb-3">Calculates Multi-factor Impact & Lethality Score (MILS) based on population density.</p>
+        </div>
+        <div class="pt-3 border-t border-navy-800 text-[11px] font-mono text-slate-300">
+          <div>Prioritization: <span class="text-emerald-400">P1-P4</span></div>
+          <div>Critical Events: <span class="text-crimson-400">6 Active</span></div>
+        </div>
+      </div>
+
+      <!-- Agent 5: Action Planner -->
+      <div class="bg-navy-900 border border-navy-700/70 p-4 rounded-xl flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono text-emerald-400 font-bold">AGENT 05</span>
+            <span class="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-400">ONLINE</span>
+          </div>
+          <h4 class="font-bold text-white text-sm mb-1">Action Planner</h4>
+          <p class="text-xs text-slate-400 mb-3">Generates responder unit manifests, water hazard routing, and civic safety advisories.</p>
+        </div>
+        <div class="pt-3 border-t border-navy-800 text-[11px] font-mono text-slate-300">
+          <div>Dispatch Time: <span class="text-emerald-400">2.1s</span></div>
+          <div>SOP Compliance: <span class="text-cyan-400">100%</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Live Agent Pipeline Logs Terminal -->
+    <div class="bg-navy-950 border border-navy-800 rounded-2xl p-5 shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-navy-800 mb-4">
+        <div class="flex items-center space-x-2">
+          <div class="w-3 h-3 rounded-full bg-crimson-500"></div>
+          <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+          <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+          <span class="ml-2 text-xs font-mono text-slate-400">agent_orchestrator.log &bull; Streaming stdout</span>
+        </div>
+        <button onclick="clearAgentLogs()" class="text-xs font-mono text-slate-500 hover:text-slate-300">Clear</button>
+      </div>
+
+      <div id="agent-log-terminal" class="font-mono text-xs text-slate-300 space-y-2 h-96 overflow-y-auto pr-2">
+        <!-- Injected dynamically -->
+      </div>
+    </div>
+  </main>
+
+  <!-- ================= VIEW 4: ANALYTICS & INSIGHTS ================= -->
+  <main id="view-analytics" class="hidden max-w-7xl mx-auto px-4 sm:px-6 py-6">
+    <div class="mb-6">
+      <h2 class="text-2xl font-black text-white tracking-wide">Crisis Intelligence Analytics</h2>
+      <p class="text-sm text-slate-400">Operational performance metrics, noise reduction ratios, and incident velocity.</p>
+    </div>
+
+    <!-- KPI Summary Row -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="bg-navy-900 border border-navy-700/70 p-4 rounded-xl">
+        <div class="text-xs font-mono text-slate-400 mb-1">TOTAL INGESTED REPORTS</div>
+        <div class="text-2xl font-extrabold text-white font-mono">1,824</div>
+        <div class="text-xs text-emerald-400 mt-1 flex items-center"><i data-lucide="trending-up" class="w-3 h-3 mr-1"></i> +18% over last hour</div>
+      </div>
+      <div class="bg-navy-900 border border-navy-700/70 p-4 rounded-xl">
+        <div class="text-xs font-mono text-slate-400 mb-1">DUPLICATES COMPACTED</div>
+        <div class="text-2xl font-extrabold text-cyan-400 font-mono">1,240 <span class="text-xs text-slate-400 font-normal">(68%)</span></div>
+        <div class="text-xs text-slate-400 mt-1">Saved 420 hrs human triage</div>
+      </div>
+      <div class="bg-navy-900 border border-navy-700/70 p-4 rounded-xl">
+        <div class="text-xs font-mono text-slate-400 mb-1">FAKE HOAXES FILTERED</div>
+        <div class="text-2xl font-extrabold text-crimson-400 font-mono">214 <span class="text-xs text-slate-400 font-normal">(11.7%)</span></div>
+        <div class="text-xs text-slate-400 mt-1">Zero bad dispatches routed</div>
+      </div>
+      <div class="bg-navy-900 border border-navy-700/70 p-4 rounded-xl">
+        <div class="text-xs font-mono text-slate-400 mb-1">MEAN TIME TO DISPATCH (MTTD)</div>
+        <div class="text-2xl font-extrabold text-amber-400 font-mono">4.2 secs</div>
+        <div class="text-xs text-emerald-400 mt-1 flex items-center"><i data-lucide="arrow-down" class="w-3 h-3 mr-1"></i> 82% faster than CAD baseline</div>
+      </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Chart 1: Incidents by Type -->
+      <div class="bg-navy-900 border border-navy-700/70 p-5 rounded-2xl shadow-xl">
+        <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider mb-4 flex items-center">
+          <i data-lucide="pie-chart" class="w-4 h-4 mr-2 text-amber-500"></i> Incident Breakdown by Disaster Category
+        </h3>
+        <div class="h-64 relative">
+          <canvas id="chart-incident-types"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 2: Severity Distribution -->
+      <div class="bg-navy-900 border border-navy-700/70 p-5 rounded-2xl shadow-xl">
+        <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider mb-4 flex items-center">
+          <i data-lucide="bar-chart-2" class="w-4 h-4 mr-2 text-crimson-500"></i> Severity Triage Distribution (Active Incidents)
+        </h3>
+        <div class="h-64 relative">
+          <canvas id="chart-severity"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 3: Response Time Comparison -->
+      <div class="bg-navy-900 border border-navy-700/70 p-5 rounded-2xl shadow-xl">
+        <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider mb-4 flex items-center">
+          <i data-lucide="zap" class="w-4 h-4 mr-2 text-cyan-400"></i> Response Time Benchmark: ResQ-Mesh vs Traditional CAD
+        </h3>
+        <div class="h-64 relative">
+          <canvas id="chart-response-time"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 4: Signal vs Noise Filtering -->
+      <div class="bg-navy-900 border border-navy-700/70 p-5 rounded-2xl shadow-xl">
+        <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider mb-4 flex items-center">
+          <i data-lucide="shield-alert" class="w-4 h-4 mr-2 text-emerald-400"></i> Ingestion Filter Funnel (Signal vs. Noise)
+        </h3>
+        <div class="h-64 relative">
+          <canvas id="chart-filter-funnel"></canvas>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ================= SIMULATION MODAL (STREAMING PIPELINE VISUAL) ================= -->
+  <div id="simulation-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div class="bg-navy-900 border border-navy-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl overflow-hidden relative">
+      <div class="flex items-center justify-between pb-4 border-b border-navy-800">
+        <div class="flex items-center space-x-2">
+          <span class="w-3 h-3 rounded-full bg-crimson-500 animate-ping"></span>
+          <h3 class="text-lg font-bold text-white font-mono">Autonomous Pipeline Simulation</h3>
+        </div>
+        <button onclick="closeSimulationModal()" class="text-slate-400 hover:text-white">&times;</button>
+      </div>
+
+      <!-- Streaming Progress Pipeline -->
+      <div class="my-6 space-y-4">
+        <!-- Step 1 -->
+        <div id="sim-step-1" class="p-3.5 rounded-xl border border-navy-700 bg-navy-950/70 flex items-center justify-between transition-all">
+          <div class="flex items-center space-x-3">
+            <div class="step-icon w-8 h-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono text-cyan-400 font-bold">1</div>
+            <div>
+              <div class="text-sm font-bold text-white">Data Collector Agent</div>
+              <div class="text-xs text-slate-400">Intercepting citizen SOS tweet & 112 emergency call audio transcript...</div>
+            </div>
+          </div>
+          <span class="step-status text-xs font-mono text-slate-400">Queued</span>
+        </div>
+
+        <!-- Step 2 -->
+        <div id="sim-step-2" class="p-3.5 rounded-xl border border-navy-700 bg-navy-950/70 flex items-center justify-between transition-all">
+          <div class="flex items-center space-x-3">
+            <div class="step-icon w-8 h-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono text-amber-400 font-bold">2</div>
+            <div>
+              <div class="text-sm font-bold text-white">Verification Agent</div>
+              <div class="text-xs text-slate-400">Reverse image query + GPS EXIF check + municipal flood sensor cross-check...</div>
+            </div>
+          </div>
+          <span class="step-status text-xs font-mono text-slate-400">Queued</span>
+        </div>
+
+        <!-- Step 3 -->
+        <div id="sim-step-3" class="p-3.5 rounded-xl border border-navy-700 bg-navy-950/70 flex items-center justify-between transition-all">
+          <div class="flex items-center space-x-3">
+            <div class="step-icon w-8 h-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono text-cyan-400 font-bold">3</div>
+            <div>
+              <div class="text-sm font-bold text-white">Deduplication Agent</div>
+              <div class="text-xs text-slate-400">Calculating semantic vector similarity and spatial radius (250m)...</div>
+            </div>
+          </div>
+          <span class="step-status text-xs font-mono text-slate-400">Queued</span>
+        </div>
+
+        <!-- Step 4 -->
+        <div id="sim-step-4" class="p-3.5 rounded-xl border border-navy-700 bg-navy-950/70 flex items-center justify-between transition-all">
+          <div class="flex items-center space-x-3">
+            <div class="step-icon w-8 h-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono text-crimson-400 font-bold">4</div>
+            <div>
+              <div class="text-sm font-bold text-white">Severity Ranking Agent</div>
+              <div class="text-xs text-slate-400">Evaluating hospital density, submerged transformer risk, child vulnerability...</div>
+            </div>
+          </div>
+          <span class="step-status text-xs font-mono text-slate-400">Queued</span>
+        </div>
+
+        <!-- Step 5 -->
+        <div id="sim-step-5" class="p-3.5 rounded-xl border border-navy-700 bg-navy-950/70 flex items-center justify-between transition-all">
+          <div class="flex items-center space-x-3">
+            <div class="step-icon w-8 h-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono text-emerald-400 font-bold">5</div>
+            <div>
+              <div class="text-sm font-bold text-white">Action Planner Agent</div>
+              <div class="text-xs text-slate-400">Formulating unit manifest (NDRF 2nd Battalion + EMS Boat), computing safe corridor...</div>
+            </div>
+          </div>
+          <span class="step-status text-xs font-mono text-slate-400">Queued</span>
+        </div>
+      </div>
+
+      <!-- Finished Banner -->
+      <div id="sim-result-banner" class="hidden p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="check-circle" class="w-5 h-5"></i>
+          <span>Incident Triaged in 2.8s &bull; Dispatched to Command Queue</span>
+        </div>
+        <button onclick="viewSimulatedIncident()" class="px-3 py-1 bg-emerald-500 text-navy-950 font-bold rounded hover:bg-emerald-400 transition">View Incident</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= JAVASCRIPT LOGIC & MOCK DATA ================= -->
+  <script>
+    // --- 22 REALISTIC MOCK INCIDENTS (MUMBAI, DELHI, BENGALURU) ---
+    const MOCK_INCIDENTS = [
+      {
+        id: "INC-901",
+        title: "Mithi River Flash Overflow & Low-Bridge Breach",
+        type: "Flood",
+        city: "Mumbai",
+        lat: 19.0657,
+        lng: 72.8722,
+        address: "Bandra-Kurla Complex (BKC) Bridge, Mumbai",
+        severity: "CRITICAL",
+        severityScore: 94,
+        credibility: "98%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 7,
+        timestamp: "3 mins ago",
+        sources: [
+          { name: "Police 112 Hotline", type: "helpline", time: "18:14" },
+          { name: "X/Twitter SOS GeoTag", type: "social", time: "18:15" },
+          { name: "Doppler Flood Radar", type: "weather", time: "18:16" }
+        ],
+        summary: "Water level rose 1.8m above danger mark in 15 mins. 14 vehicles submerged; 42 commuters stranded on bus roofs near BKC junction. Electrical transformer submerged sparking.",
+        actionPlan: {
+          recommendedDispatch: "NDRF 5th Battalion + Mumbai Fire Brigade Rescue Boat 2",
+          priorityOrder: "1. Power Substation Cutoff -> 2. Evacuate Bus Passengers -> 3. Barrier Placement",
+          resourcesNeeded: "3 Inflatable Dinghies, 50 Life Vests, 2 HazMat Electrical Cutters",
+          estimatedResponseTime: "6 - 8 Minutes",
+          hazards: "Live submerged 440V cables, fast-flowing debris current",
+          assignedCommander: "Inspector R. Deshmukh (Control Cell 4)"
+        }
+      },
+      {
+        id: "INC-902",
+        title: "Commercial Warehouse Chemical Fire",
+        type: "Fire",
+        city: "Mumbai",
+        lat: 19.0028,
+        lng: 72.8439,
+        address: "Reay Road Industrial Estate, Dockyard, Mumbai",
+        severity: "CRITICAL",
+        severityScore: 92,
+        credibility: "95%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 5,
+        timestamp: "7 mins ago",
+        sources: [
+          { name: "Mumbai Fire Control", type: "news", time: "18:11" },
+          { name: "Local Citizen WhatsApp SOS", type: "social", time: "18:12" }
+        ],
+        summary: "Solvent barrel explosion at paint factory storage. Dense toxic black plume drifting towards residential chawls. 6 workers unaccounted for inside Unit 4.",
+        actionPlan: {
+          recommendedDispatch: "HazMat Foam Tender 3 + 4 Fire Engines + 2 Advanced Life Support Ambulances",
+          priorityOrder: "1. Toxic Plume Downwind Evacuation (500m) -> 2. Foam Curtain on Solvent Tanks",
+          resourcesNeeded: "AFFF Foam concentrate, Thermal Imaging Drones, SCBA Gear (16 sets)",
+          estimatedResponseTime: "5 - 7 Minutes",
+          hazards: "Secondary pressurized solvent explosion risk, Hydrocyanic vapor",
+          assignedCommander: "Station Officer K. Patil"
+        }
+      },
+      {
+        id: "INC-903",
+        title: "Chandni Chowk Electrical Market Transformer Blast",
+        type: "Fire",
+        city: "Delhi",
+        lat: 28.6562,
+        lng: 77.2310,
+        address: "Bhagirath Palace, Chandni Chowk, Old Delhi",
+        severity: "HIGH",
+        severityScore: 84,
+        credibility: "92%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 4,
+        timestamp: "12 mins ago",
+        sources: [
+          { name: "Delhi Fire Service Cad", type: "helpline", time: "18:06" },
+          { name: "Citizen Video Broadcast", type: "social", time: "18:08" }
+        ],
+        summary: "Overhead cable knot caught fire spreading to 3 hardware shops in ultra-narrow alley. Fire trucks unable to navigate alleyway without specialized mini-tenders.",
+        actionPlan: {
+          recommendedDispatch: "Delhi Fire Quick-Reaction Water Mist Bike Units + BSES Grid Shutdown",
+          priorityOrder: "1. Grid Isolation -> 2. Alleyway Crowd Clearance -> 3. Mist Firefighting",
+          resourcesNeeded: "2 Bullet Fire Bikes, Portable pumps, 400m hose lines",
+          estimatedResponseTime: "8 - 11 Minutes",
+          hazards: "Hanging loose wires, dense pedestrian density",
+          assignedCommander: "Divisional Officer M. Sharma"
+        }
+      },
+      {
+        id: "INC-904",
+        title: "Yamuna Floodplain Low-Lying Hutments Inundation",
+        type: "Flood",
+        city: "Delhi",
+        lat: 28.6256,
+        lng: 77.2560,
+        address: "Mayur Vihar Extension / Yamuna Khadar, Delhi",
+        severity: "HIGH",
+        severityScore: 81,
+        credibility: "96%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 8,
+        timestamp: "16 mins ago",
+        sources: [
+          { name: "CWC Water Commission Bulletin", type: "weather", time: "18:02" },
+          { name: "Civil Defense Radio", type: "helpline", time: "18:04" }
+        ],
+        summary: "Hathnikund barrage discharge reached Delhi. Water entered 120 makeshift settlements. Around 300 cattle and 85 families require urgent relocation to higher relief camps.",
+        actionPlan: {
+          recommendedDispatch: "Delhi Disaster Management (DDMA) Boat Unit + 6 DTC Evacuation Buses",
+          priorityOrder: "1. Ferry elderly/children to Akshardham relief tents -> 2. Animal rescue",
+          resourcesNeeded: "4 Motorized rescue boats, 200 food/water rations, Medical tetanus camp",
+          estimatedResponseTime: "12 - 15 Minutes",
+          hazards: "Rising water levels, snake bite threat in silted water",
+          assignedCommander: "Sub-Divisional Magistrate V. Rao"
+        }
+      },
+      {
+        id: "INC-905",
+        title: "Outer Ring Road 6-Vehicle Pileup in Heavy Downpour",
+        type: "Accident",
+        city: "Bengaluru",
+        lat: 12.9352,
+        lng: 77.6946,
+        address: "Bellandur EcoSpace Flyover, Outer Ring Road, Bengaluru",
+        severity: "HIGH",
+        severityScore: 78,
+        credibility: "91%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 6,
+        timestamp: "19 mins ago",
+        sources: [
+          { name: "Traffic Police CCTV", type: "news", time: "17:59" },
+          { name: "112 Ambulance Dispatch", type: "helpline", time: "18:00" }
+        ],
+        summary: "Aquaplaning trailer jackknifed into 4 passenger cars and a tech park feeder bus. 2 passengers trapped in crumpled sedan; fuel leaking onto wet tarmac.",
+        actionPlan: {
+          recommendedDispatch: "Hydraulic Jaws-of-Life Unit + 3 Trauma Care Ambulances + Traffic Crane",
+          priorityOrder: "1. Extricate trapped passengers -> 2. Neutralize diesel slick -> 3. Divert ORR traffic",
+          resourcesNeeded: "Heavy Tow Crane, Foam wash, Spine boards, Trauma paramedic team",
+          estimatedResponseTime: "7 - 10 Minutes",
+          hazards: "Secondary crash hazard from speeding traffic in low visibility",
+          assignedCommander: "ACP Traffic South Zone"
+        }
+      },
+      {
+        id: "INC-906",
+        title: "Submerged India Gate Tunnel & Drowning Bus [FAKE REPORT]",
+        type: "Flood",
+        city: "Delhi",
+        lat: 28.6129,
+        lng: 77.2295,
+        address: "Central Vista Underpass, New Delhi",
+        severity: "LOW",
+        severityScore: 12,
+        credibility: "8%",
+        isFake: true,
+        fakeReason: "AI-generated image synthesis detected (Stable Diffusion water artifacts). Reverse check against NDMC live sensor shows underpass pumps operational with 0cm standing water.",
+        mergedDuplicates: 0,
+        timestamp: "22 mins ago",
+        sources: [
+          { name: "Viral X/Twitter Post (Handle @DelhiAlerts24)", type: "social", time: "17:56" }
+        ],
+        summary: "FLAGGED HOAX: Viral post claiming double-decker bus submerged inside India Gate tunnel. Image reverse-search confirmed AI synthetic generation. Municipal sensors report normal traffic flow.",
+        actionPlan: {
+          recommendedDispatch: "NO DISPATCH (FLAGGED HOAX)",
+          priorityOrder: "1. Auto-issue rebuttal notice on Citizen Advisory API -> 2. Blacklist bot poster",
+          resourcesNeeded: "Zero Physical Deployment (Prevented 2 Fire Tenders wasted)",
+          estimatedResponseTime: "0 Minutes (Defused)",
+          hazards: "None (Digital Misinformation)",
+          assignedCommander: "AI Verification Sentinel Unit"
+        }
+      },
+      {
+        id: "INC-907",
+        title: "Bellandur Lake Toxic Chemical Foam & Road Spillover",
+        type: "Structural",
+        city: "Bengaluru",
+        lat: 12.9298,
+        lng: 77.6710,
+        address: "Yemalur Outlet, Bellandur, Bengaluru",
+        severity: "MEDIUM",
+        severityScore: 68,
+        credibility: "89%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 3,
+        timestamp: "26 mins ago",
+        sources: [
+          { name: "Citizen Resident Forum", type: "social", time: "17:52" },
+          { name: "KSPCB Sensor Gateway", type: "weather", time: "17:54" }
+        ],
+        summary: "Heavy rains triggered high effluent surfactant foaming. Foam billowing 1.5m high across road, severely restricting two-wheeler visibility and causing eye irritation.",
+        actionPlan: {
+          recommendedDispatch: "BBMP Water Jet Sprinkler Truck + Traffic Wardens",
+          priorityOrder: "1. Water-jet chemical knock-down -> 2. Divert two-wheeler traffic via Marathahalli",
+          resourcesNeeded: "2 High-pressure water tankers, Protective chemical masks for wardens",
+          estimatedResponseTime: "15 - 20 Minutes",
+          hazards: "Corrosive aerosol, slippery chemical residue on road",
+          assignedCommander: "BBMP Ward 150 Engineer"
+        }
+      },
+      {
+        id: "INC-908",
+        title: "Under-Construction Metro Pier Scaffold Collapse",
+        type: "Accident",
+        city: "Mumbai",
+        lat: 19.1176,
+        lng: 72.8485,
+        address: "Western Express Highway (WEH), Andheri East, Mumbai",
+        severity: "CRITICAL",
+        severityScore: 91,
+        credibility: "97%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 9,
+        timestamp: "31 mins ago",
+        sources: [
+          { name: "MMRDA Emergency Line", type: "helpline", time: "17:47" },
+          { name: "108 Ambulance SOS", type: "helpline", time: "17:48" },
+          { name: "Traffic Police Feed", type: "news", time: "17:49" }
+        ],
+        summary: "Heavy iron scaffolding collapsed across northbound WEH lanes. 2 auto-rickshaws crushed; 5 laborers injured on pier deck. Massive arterial gridlock blocking ambulances.",
+        actionPlan: {
+          recommendedDispatch: "Heavy Recovery Cranes (x2) + NDRF Urban Search & Rescue Team + 4 Ambulances",
+          priorityOrder: "1. Create Green Corridor on southbound WEH -> 2. Lift iron girders -> 3. Triage victims",
+          resourcesNeeded: "50-ton mobile hydraulic crane, Metal cutting torches, 4 Paramedic units",
+          estimatedResponseTime: "6 - 9 Minutes",
+          hazards: "Unstable remaining scaffold section in high winds",
+          assignedCommander: "Joint Police Commissioner (Traffic)"
+        }
+      },
+      {
+        id: "INC-909",
+        title: "Massive LPG Cylinder Blast in Slum Cluster [OLD VIDEO REPOST]",
+        type: "Fire",
+        city: "Mumbai",
+        lat: 19.0434,
+        lng: 72.8633,
+        address: "Dharavi 90-Feet Road, Mumbai",
+        severity: "LOW",
+        severityScore: 10,
+        credibility: "6%",
+        isFake: true,
+        fakeReason: "Video frames match a December 2019 gas leak incident in Surat, Gujarat. Timestamp tampering detected on Twitter upload. Local Dharavi police station reports quiet.",
+        mergedDuplicates: 0,
+        timestamp: "36 mins ago",
+        sources: [
+          { name: "Unverified YouTube Shorts / X link", type: "social", time: "17:42" }
+        ],
+        summary: "FLAGGED RECYCLED HOAX: Video claiming active multi-cylinder explosion in Dharavi. Perceptual hashing matched archived 2019 footage. Local emergency beats notified of zero incident.",
+        actionPlan: {
+          recommendedDispatch: "NO DISPATCH (RECYCLED HOAX)",
+          priorityOrder: "1. Inform Cyber Cell for misinfo alert -> 2. Suppress from priority queue",
+          resourcesNeeded: "None (Conserved 3 Fire Tenders from wild goose chase)",
+          estimatedResponseTime: "0 Minutes",
+          hazards: "Public panic / stampede rumors",
+          assignedCommander: "Cyber Crime Unit / Sentinel"
+        }
+      },
+      {
+        id: "INC-910",
+        title: "Submerged Railway Underpass with Trapped School Van",
+        type: "Flood",
+        city: "Bengaluru",
+        lat: 12.9716,
+        lng: 77.5946,
+        address: "K.R. Circle Underpass, Central Bengaluru",
+        severity: "CRITICAL",
+        severityScore: 95,
+        credibility: "99%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 11,
+        timestamp: "40 mins ago",
+        sources: [
+          { name: "Driver 112 SOS Call", type: "helpline", time: "17:38" },
+          { name: "Traffic Camera Feed", type: "news", time: "17:39" },
+          { name: "Passerby Live Video", type: "social", time: "17:40" }
+        ],
+        summary: "Underpass filled with 1.4m rainwater within 10 minutes due to clogged stormwater drain. School van with 8 children stalled; water level rising past car door handles.",
+        actionPlan: {
+          recommendedDispatch: "SDRF Quick Response Boat Unit + Traffic Police Lifeline Team",
+          priorityOrder: "1. Urgent rescue of children through roof escape -> 2. Activate high-capacity dewatering pumps",
+          resourcesNeeded: "Life rings, Inflatable raft, 2 Submersible 100HP pumps, Warm shock blankets",
+          estimatedResponseTime: "4 - 6 Minutes",
+          hazards: "Rapid water inflow, hypothermia, panic among children",
+          assignedCommander: "Fire & Emergency Services SP"
+        }
+      },
+      {
+        id: "INC-911",
+        title: "Residential High-Rise 14th Floor Balcony Blaze",
+        type: "Fire",
+        city: "Delhi",
+        lat: 28.5355,
+        lng: 77.2500,
+        address: "Greater Kailash II, South Delhi",
+        severity: "HIGH",
+        severityScore: 82,
+        credibility: "94%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 3,
+        timestamp: "45 mins ago",
+        sources: [
+          { name: "Building RWA Secretary", type: "helpline", time: "17:33" },
+          { name: "Delhi Fire Service", type: "news", time: "17:35" }
+        ],
+        summary: "Inverter battery short-circuit triggered fire on 14th floor balcony, threatening to leap to 15th floor curtains. 2 elderly residents trapped inside flat.",
+        actionPlan: {
+          recommendedDispatch: "54-Meter Hydraulic Turntable Ladder + 2 Water Tenders",
+          priorityOrder: "1. External ladder rescue of elderly -> 2. Connect to internal building wet-riser",
+          resourcesNeeded: "Hydraulic Snorkel, Smoke extractor fans, Breathing air refills",
+          estimatedResponseTime: "9 - 12 Minutes",
+          hazards: "Shattered glass panes falling onto ground courtyard",
+          assignedCommander: "DFS Station Officer GK"
+        }
+      },
+      {
+        id: "INC-912",
+        title: "Expressway Multi-Truck Collision with Gas Leak",
+        type: "Accident",
+        city: "Delhi",
+        lat: 28.4089,
+        lng: 77.3178,
+        address: "Eastern Peripheral Expressway Toll Plaza, Delhi-NCR",
+        severity: "CRITICAL",
+        severityScore: 93,
+        credibility: "96%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 5,
+        timestamp: "49 mins ago",
+        sources: [
+          { name: "NHAI Highway Patrol", type: "helpline", time: "17:29" },
+          { name: "Toll Booth Automated Alarm", type: "news", time: "17:30" }
+        ],
+        summary: "Dense fog/rain pileup involving CNG tanker and 2 container carriers. Tanker safety valve damaged; hiss sound and odor reported. 1 driver pinned in cabin.",
+        actionPlan: {
+          recommendedDispatch: "HazMat Gas Seal Team + Heavy Hydraulic Extrication Unit + Fire Spray Curtain",
+          priorityOrder: "1. 1km Perimeter Isolation & Toll Evacuation -> 2. Continuous Water Fog Spray -> 3. Driver Rescue",
+          resourcesNeeded: "Explosion-proof tools, Water fog nozzles, Gas concentration meters",
+          estimatedResponseTime: "7 - 10 Minutes",
+          hazards: "BLEVE (Boiling Liquid Expanding Vapor Explosion) risk if ignition occurs",
+          assignedCommander: "NHAI Disaster Coordinator"
+        }
+      },
+      {
+        id: "INC-913",
+        title: "Hindmata Junction Arterial Waterlogging",
+        type: "Flood",
+        city: "Mumbai",
+        lat: 19.0144,
+        lng: 72.8479,
+        address: "Hindmata Flyover Underbelly, Dadar, Mumbai",
+        severity: "MEDIUM",
+        severityScore: 65,
+        credibility: "93%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 4,
+        timestamp: "53 mins ago",
+        sources: [
+          { name: "BMC Disaster Cell Feed", type: "news", time: "17:25" },
+          { name: "Citizen Bus Commuter", type: "social", time: "17:26" }
+        ],
+        summary: "Standing water 60cm on Dadar TT road. Cars crawling; BEST buses diverted over flyover. Minor pedestrian wading delays.",
+        actionPlan: {
+          recommendedDispatch: "BMC F-South Ward Dewatering Crew",
+          priorityOrder: "1. Clear trash trash-screens at drain mouth -> 2. Deploy 2 diesel pumps",
+          resourcesNeeded: "2 Portable suction pumps, Traffic diversion signboards",
+          estimatedResponseTime: "12 - 15 Minutes",
+          hazards: "Open manhole covers hidden by muddy water",
+          assignedCommander: "Ward Executive Engineer"
+        }
+      },
+      {
+        id: "INC-914",
+        title: "Kempegowda Airport Expressway Waterlogged Stoppage",
+        type: "Flood",
+        city: "Bengaluru",
+        lat: 13.1986,
+        lng: 77.7066,
+        address: "Yelahanka Air Force Station Road / Airport Highway, Bengaluru",
+        severity: "MEDIUM",
+        severityScore: 64,
+        credibility: "90%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 3,
+        timestamp: "58 mins ago",
+        sources: [
+          { name: "Airport Cabs WhatsApp Alert", type: "social", time: "17:20" },
+          { name: "Traffic Advisory Bot", type: "weather", time: "17:22" }
+        ],
+        summary: "Lake overflow flooded service road toward Terminal 1. Flight passengers missing departure gates; 2 taxis engine-flooded.",
+        actionPlan: {
+          recommendedDispatch: "Traffic Police Tow Trucks + Earthmover to breach temporary earthen embankment",
+          priorityOrder: "1. Push stalled cars to shoulder -> 2. Cut earthen ditch to divert water to storm canal",
+          resourcesNeeded: "1 JCB Backhoe loader, 2 Flatbed recovery trucks",
+          estimatedResponseTime: "14 - 18 Minutes",
+          hazards: "Stranded passengers walking on high-speed expressway",
+          assignedCommander: "Airport Security & Traffic Cell"
+        }
+      },
+      {
+        id: "INC-915",
+        title: "Old 4-Storey Tenement Staircase Crack",
+        type: "Structural",
+        city: "Mumbai",
+        lat: 18.9667,
+        lng: 72.8333,
+        address: "Bhendi Bazaar, South Mumbai",
+        severity: "HIGH",
+        severityScore: 79,
+        credibility: "91%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 2,
+        timestamp: "1 hr ago",
+        sources: [
+          { name: "Tenant Emergency Helpline", type: "helpline", time: "17:15" }
+        ],
+        summary: "Vibrations from nearby metro tunnel drilling caused internal cantilever staircase to shear 4 inches. 18 residents unable to descend from 3rd and 4th floors.",
+        actionPlan: {
+          recommendedDispatch: "Mumbai Fire Aerial Platform + Building Structural Safety Audit Squad",
+          priorityOrder: "1. Evacuate 18 residents via external aerial platform -> 2. Shore up staircase base",
+          resourcesNeeded: "32m Snorkel, Hydraulic steel propping jacks, Safety harnesses",
+          estimatedResponseTime: "10 - 13 Minutes",
+          hazards: "Progressive collapse of remaining stairs during rescue",
+          assignedCommander: "MHADA Emergency Demolition & Rescue Cell"
+        }
+      },
+      {
+        id: "INC-916",
+        title: "Submerged Hospital Generator Basement",
+        type: "Flood",
+        city: "Delhi",
+        lat: 28.5672,
+        lng: 77.2100,
+        address: "Near AIIMS Flyover / Ring Road, New Delhi",
+        severity: "CRITICAL",
+        severityScore: 96,
+        credibility: "99%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 6,
+        timestamp: "1 hr 5 mins ago",
+        sources: [
+          { name: "Hospital Medical Superintendent", type: "helpline", time: "17:10" },
+          { name: "PWD Flood Control", type: "news", time: "17:12" }
+        ],
+        summary: "Storm runoff breached basement ramp where backup diesel generators and oxygen manifold valves reside. Power trip will compromise 2 ICU wards (44 ventilator beds).",
+        actionPlan: {
+          recommendedDispatch: "NDRF High-Volume Dewatering Taskforce + 2 Mobile 500kVA DG Trucks",
+          priorityOrder: "1. Sandbag barrier at basement entrance -> 2. Connect mobile DG truck to ICU panel -> 3. High-volume pumping",
+          resourcesNeeded: "500 Sandbags, 3 Sludge pumps (5000 LPM), Mobile DG truck",
+          estimatedResponseTime: "5 - 7 Minutes",
+          hazards: "Critical life support ICU blackout, electrical electrocution",
+          assignedCommander: "Chief Disaster Officer Delhi & NDRF"
+        }
+      },
+      {
+        id: "INC-917",
+        title: "Flyover Girder Displacement in Storm Winds",
+        type: "Structural",
+        city: "Bengaluru",
+        lat: 12.9900,
+        lng: 77.5500,
+        address: "Rajajinagar Industrial Flyover, Bengaluru",
+        severity: "HIGH",
+        severityScore: 76,
+        credibility: "88%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 3,
+        timestamp: "1 hr 12 mins ago",
+        sources: [
+          { name: "Citizen Dashcam Video", type: "social", time: "17:05" },
+          { name: "BTP Traffic Alert", type: "helpline", time: "17:07" }
+        ],
+        summary: "Expansion joint rubber perished; concrete girder bearing shifted 2 inches under severe squall. Rattling sound reported under heavy truck load.",
+        actionPlan: {
+          recommendedDispatch: "Traffic Police Barricade Unit + BBMP Chief Structural Engineer",
+          priorityOrder: "1. Complete closure of flyover upper deck -> 2. Divert traffic to ground level -> 3. Sensor installation",
+          resourcesNeeded: "Concrete jersey barriers, Laser deflection gauge, Warning beacons",
+          estimatedResponseTime: "10 - 14 Minutes",
+          hazards: "Potential structural drop if overloaded",
+          assignedCommander: "BBMP Infrastructure Lead"
+        }
+      },
+      {
+        id: "INC-918",
+        title: "Garbage Mountain Landslide at Landfill",
+        type: "Accident",
+        city: "Delhi",
+        lat: 28.6270,
+        lng: 77.3290,
+        address: "Ghazipur Landfill Border, East Delhi",
+        severity: "HIGH",
+        severityScore: 80,
+        credibility: "93%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 5,
+        timestamp: "1 hr 20 mins ago",
+        sources: [
+          { name: "Police Patrol Checkpost", type: "helpline", time: "16:58" },
+          { name: "Local Villagers Group", type: "social", time: "17:00" }
+        ],
+        summary: "Continuous rain destabilized 40m garbage slope. Silt and waste slid into boundary canal, washing 2 cattle and 1 recycling shack into water.",
+        actionPlan: {
+          recommendedDispatch: "Earthmoving Excavator Crew + SDRF Search Dogs",
+          priorityOrder: "1. Search for missing ragpickers -> 2. Clear canal obstruction to prevent toxic backflow",
+          resourcesNeeded: "2 Long-arm excavators, Search canine squad, Methane detection masks",
+          estimatedResponseTime: "12 - 16 Minutes",
+          hazards: "Sub-surface methane pockets, bio-hazard waste exposure",
+          assignedCommander: "East Delhi Municipal Commissioner"
+        }
+      },
+      {
+        id: "INC-919",
+        title: "Chemical Paint Godown Smoldering",
+        type: "Fire",
+        city: "Bengaluru",
+        lat: 12.8900,
+        lng: 77.5800,
+        address: "JP Nagar 6th Phase Industrial Belt, Bengaluru",
+        severity: "MEDIUM",
+        severityScore: 62,
+        credibility: "87%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 2,
+        timestamp: "1 hr 30 mins ago",
+        sources: [
+          { name: "Adjacent Security Guard", type: "helpline", time: "16:48" }
+        ],
+        summary: "Thick white smoke issuing from locked warehouse. Suspected varnish leak reaction. Building unoccupied.",
+        actionPlan: {
+          recommendedDispatch: "1 Fire Tender + Water Mist Cutter",
+          priorityOrder: "1. Cut shutter lock -> 2. Thermal scan for origin -> 3. Ventilate",
+          resourcesNeeded: "Hydraulic rotary saw, CO2 extinguishers, Foam nozzles",
+          estimatedResponseTime: "8 - 12 Minutes",
+          hazards: "Flammable paint thinners",
+          assignedCommander: "JP Nagar Fire Station Officer"
+        }
+      },
+      {
+        id: "INC-920",
+        title: "Collapsed Pedestrian Footbridge over Railway Track",
+        type: "Structural",
+        city: "Mumbai",
+        lat: 19.0833,
+        lng: 72.8833,
+        address: "Kurla Suburban Rail Station East, Mumbai",
+        severity: "CRITICAL",
+        severityScore: 97,
+        credibility: "99%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 14,
+        timestamp: "1 hr 45 mins ago",
+        sources: [
+          { name: "Central Railway Station Master", type: "helpline", time: "16:32" },
+          { name: "Railway Police RPF Control", type: "helpline", time: "16:33" },
+          { name: "Dozens of Live Commuter Tweets", type: "social", time: "16:34" }
+        ],
+        summary: "Corroded steel staircase section caved during peak evening rush. Multiple commuters fallen onto overhead wire safety gantry. Suburban harbor line suspended.",
+        actionPlan: {
+          recommendedDispatch: "Railway Accident Relief Medical Van (ARMV) + NDRF Kurla Base Squad",
+          priorityOrder: "1. Neutralize 25kV OHE power line -> 2. Rescue fallen victims from gantry -> 3. Clear tracks",
+          resourcesNeeded: "Railway breakdown crane, 6 Spine boards, 8 Paramedic stretchers",
+          estimatedResponseTime: "4 - 7 Minutes",
+          hazards: "25kV live traction wire, heavy crowd stampede risk at station gates",
+          assignedCommander: "Divisional Railway Manager (DRM) & Joint CP"
+        }
+      },
+      {
+        id: "INC-921",
+        title: "Tree Fall on City Bus with Trapped Commuters",
+        type: "Accident",
+        city: "Bengaluru",
+        lat: 12.9800,
+        lng: 77.6000,
+        address: "Cubbon Park / Kasturba Road, Bengaluru",
+        severity: "LOW",
+        severityScore: 48,
+        credibility: "94%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 2,
+        timestamp: "2 hrs ago",
+        sources: [
+          { name: "BMTC Control Room", type: "news", time: "16:18" }
+        ],
+        summary: "Centuries-old Gulmohar tree fell onto roof of bus. Minor glass cuts to 3 passengers; road completely blocked.",
+        actionPlan: {
+          recommendedDispatch: "BBMP Forest Cell Tree Cutting Squad + 1 Ambulance",
+          priorityOrder: "1. Treat minor glass cuts -> 2. Chainsaw removal of timber branches",
+          resourcesNeeded: "3 Chainsaws, Wood chipper, Traffic cones",
+          estimatedResponseTime: "15 - 20 Minutes",
+          hazards: "Branches tangled in streetlamp power lines",
+          assignedCommander: "Forest Range Officer (BBMP)"
+        }
+      },
+      {
+        id: "INC-922",
+        title: "Underground Metro Tunnel Flooding Hoax",
+        type: "Flood",
+        city: "Bengaluru",
+        lat: 12.9750,
+        lng: 77.5700,
+        address: "Majestic Metro Interchange, Bengaluru",
+        severity: "LOW",
+        severityScore: 9,
+        credibility: "5%",
+        isFake: true,
+        fakeReason: "Audio dubbing analysis revealed extracted sound from 2021 New York subway storm. BMRCL automated water sensor and security live cameras confirm completely dry platforms.",
+        mergedDuplicates: 0,
+        timestamp: "2 hrs 10 mins ago",
+        sources: [
+          { name: "Telegram Anonymous Channel", type: "social", time: "16:08" }
+        ],
+        summary: "FLAGGED AUDIO HOAX: Fabricated audio of screaming passengers claiming Majestic underground is flooding. Completely false; train operations running on schedule.",
+        actionPlan: {
+          recommendedDispatch: "NO DISPATCH (FLAGGED AUDIO HOAX)",
+          priorityOrder: "1. Issue public debunk alert on Metro app -> 2. File cyber incident log",
+          resourcesNeeded: "None (Prevented unnecessary mass transit panic)",
+          estimatedResponseTime: "0 Minutes",
+          hazards: "Public panic",
+          assignedCommander: "BMRCL Security Director"
+        }
+      }
+    ];
+
+    // --- APPLICATION STATE ---
+    let currentIncidents = [...MOCK_INCIDENTS];
+    let selectedIncident = currentIncidents[0];
+    let showFakes = false;
+    let leafletMap = null;
+    let mapMarkers = {};
+    let charts = {};
+
+    // --- VIEW SWITCHING ---
+    function switchView(viewName) {
+      document.getElementById('view-landing').classList.add('hidden');
+      document.getElementById('view-dashboard').classList.add('hidden');
+      document.getElementById('view-agents').classList.add('hidden');
+      document.getElementById('view-analytics').classList.add('hidden');
+
+      // Update Nav Buttons
+      ['landing', 'dashboard', 'agents', 'analytics'].forEach(v => {
+        const btn = document.getElementById(`nav-` + v);
+        if (btn) {
+          if (v === viewName) {
+            btn.className = "px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all bg-navy-800 text-amber-400 border border-amber-500/30 shadow-sm flex items-center space-x-1.5";
+          } else {
+            btn.className = "px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-300 hover:text-white flex items-center space-x-1.5";
+          }
+        }
+      });
+
+      const target = document.getElementById(`view-${viewName}`);
+      if (target) {
+        target.classList.remove('hidden');
+      }
+
+      if (viewName === 'dashboard') {
+        setTimeout(() => {
+          if (leafletMap) leafletMap.invalidateSize();
+        }, 100);
+      } else if (viewName === 'analytics') {
+        initAnalyticsCharts();
+      } else if (viewName === 'agents') {
+        initAgentLogs();
+      }
+
+      lucide.createIcons();
+    }
+
+    // --- INITIALIZE LEAFLET MAP ---
+    function initMap() {
+      if (leafletMap) return;
+
+      // Centered initially over Central India / Mumbai
+      leafletMap = L.map('map', {
+        zoomControl: true,
+        attributionControl: false
+      }).setView([19.0760, 72.8777], 11);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+      }).addTo(leafletMap);
+
+      renderMarkers();
+    }
+
+    // --- RENDER INCIDENT MARKERS ON MAP ---
+    function renderMarkers() {
+      if (!leafletMap) return;
+
+      // Clear existing markers
+      Object.values(mapMarkers).forEach(m => leafletMap.removeLayer(m));
+      mapMarkers = {};
+
+      const filtered = getFilteredIncidents();
+
+      filtered.forEach(inc => {
+        // Color mapping
+        let color = '#FF3B30'; // Critical Red
+        let pulseClass = inc.severity === 'CRITICAL' ? 'beacon-ring' : '';
+        if (inc.isFake) color = '#6B7280'; // Slate
+        else if (inc.severity === 'HIGH') color = '#FF9500'; // Amber
+        else if (inc.severity === 'MEDIUM') color = '#FACC15'; // Yellow
+        else if (inc.severity === 'LOW') color = '#10B981'; // Green
+
+        const iconHtml = `
+          <div class="relative custom-marker cursor-pointer" onclick="selectIncidentById('${inc.id}')">
+            <div class="absolute -inset-2 rounded-full ${pulseClass}" style="background-color: ${color}; opacity: 0.4;"></div>
+            <div class="w-6 h-6 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-[10px] font-bold text-white z-10" style="background-color: ${color};">
+              ${inc.type === 'Flood' ? '🌊' : inc.type === 'Fire' ? '🔥' : inc.type === 'Accident' ? '🚗' : '⚠️'}
+            </div>
+          </div>
+        `;
+
+        const customIcon = L.divIcon({
+          html: iconHtml,
+          className: '',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+
+        const marker = L.marker([inc.lat, inc.lng], { icon: customIcon }).addTo(leafletMap);
+        
+        marker.bindPopup(`
+          <div class="bg-navy-900 text-white p-2 rounded font-sans text-xs max-w-xs">
+            <div class="font-bold text-amber-400 mb-1">${inc.title}</div>
+            <div class="text-[11px] text-slate-300 mb-1">${inc.address}</div>
+            <div class="flex items-center justify-between text-[10px] font-mono">
+              <span class="text-crimson-400 font-bold">${inc.severity} (${inc.severityScore})</span>
+              <span class="text-cyan-400">Cred: ${inc.credibility}</span>
+            </div>
+          </div>
+        `);
+
+        mapMarkers[inc.id] = marker;
+      });
+    }
+
+    // --- RE-CENTER MAP ---
+    function recenterMap(city) {
+      if (!leafletMap) return;
+      if (city === 'Mumbai') leafletMap.flyTo([19.0760, 72.8777], 11);
+      else if (city === 'Delhi') leafletMap.flyTo([28.6139, 77.2090], 11);
+      else if (city === 'Bengaluru') leafletMap.flyTo([12.9716, 77.5946], 11);
+    }
+
+    // --- FILTER INCIDENTS ---
+    function getFilteredIncidents() {
+      const typeFilter = document.getElementById('filter-type').value;
+      const sevFilter = document.getElementById('filter-severity').value;
+      const cityFilter = document.getElementById('filter-city').value;
+
+      return currentIncidents.filter(inc => {
+        if (!showFakes && inc.isFake) return false;
+        if (typeFilter !== 'ALL' && inc.type !== typeFilter) return false;
+        if (sevFilter !== 'ALL' && inc.severity !== sevFilter) return false;
+        if (cityFilter !== 'ALL' && inc.city !== cityFilter) return false;
+        return true;
+      });
+    }
+
+    function toggleIncludeFake() {
+      showFakes = !showFakes;
+      const ind = document.getElementById('fake-filter-indicator');
+      const btn = document.getElementById('toggle-fake-filter');
+      if (showFakes) {
+        ind.className = 'w-2 h-2 rounded-full bg-crimson-500 animate-pulse';
+        btn.classList.add('border-crimson-500/50', 'text-white');
+      } else {
+        ind.className = 'w-2 h-2 rounded-full bg-slate-500';
+        btn.classList.remove('border-crimson-500/50', 'text-white');
+      }
+      applyFilters();
+    }
+
+    function applyFilters() {
+      renderIncidentFeed();
+      renderMarkers();
+      updateCounters();
+    }
+
+    function resetFilters() {
+      document.getElementById('filter-type').value = 'ALL';
+      document.getElementById('filter-severity').value = 'ALL';
+      document.getElementById('filter-city').value = 'ALL';
+      showFakes = false;
+      document.getElementById('fake-filter-indicator').className = 'w-2 h-2 rounded-full bg-slate-500';
+      document.getElementById('toggle-fake-filter').classList.remove('border-crimson-500/50', 'text-white');
+      applyFilters();
+    }
+
+    function updateCounters() {
+      const active = currentIncidents.filter(i => !i.isFake).length;
+      const fakes = currentIncidents.filter(i => i.isFake).length;
+      const merged = currentIncidents.reduce((acc, i) => acc + (i.mergedDuplicates || 0), 0);
+
+      document.getElementById('count-active').innerText = active;
+      document.getElementById('count-fakes').innerText = fakes;
+      document.getElementById('count-merged').innerText = merged;
+    }
+
+    // --- RENDER INCIDENT FEED (LEFT COLUMN) ---
+    function renderIncidentFeed() {
+      const container = document.getElementById('incident-list-container');
+      const filtered = getFilteredIncidents();
+      document.getElementById('incident-stream-count').innerText = `${filtered.length} Events`;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center text-slate-500 text-xs font-mono">
+            No incidents match active filters.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(inc => {
+        const isSelected = selectedIncident && selectedIncident.id === inc.id;
+        
+        let sevBadge = '';
+        if (inc.isFake) {
+          sevBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-400 border border-slate-700">FAKE / FILTERED</span>`;
+        } else if (inc.severity === 'CRITICAL') {
+          sevBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-crimson-500/20 text-crimson-400 border border-crimson-500/40 animate-pulse">CRITICAL ${inc.severityScore}</span>`;
+        } else if (inc.severity === 'HIGH') {
+          sevBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">HIGH ${inc.severityScore}</span>`;
+        } else if (inc.severity === 'MEDIUM') {
+          sevBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-yellow-400/20 text-yellow-300 border border-yellow-400/40">MED ${inc.severityScore}</span>`;
+        } else {
+          sevBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">LOW ${inc.severityScore}</span>`;
+        }
+
+        let dupBadge = inc.mergedDuplicates > 0 
+          ? `<span class="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-800/80 px-1.5 py-0.5 rounded flex items-center"><i data-lucide="layers" class="w-3 h-3 mr-1 inline"></i>${inc.mergedDuplicates} Merged</span>` 
+          : '';
+
+        let borderClass = isSelected ? 'border-amber-500 bg-navy-800/90 ring-1 ring-amber-500/50' : 'border-navy-700/60 bg-navy-950/70 hover:border-navy-600 hover:bg-navy-850';
+
+        return `
+          <div onclick="selectIncidentById('${inc.id}')" class="p-3 rounded-xl border ${borderClass} cursor-pointer transition-all duration-150">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <span class="text-[11px] font-mono text-slate-400 flex items-center">
+                <span class="text-amber-400 mr-1.5 font-bold">${inc.city}</span> &bull; ${inc.timestamp}
+              </span>
+              <div class="flex items-center space-x-1.5">
+                ${dupBadge}
+                ${sevBadge}
+              </div>
+            </div>
+
+            <div class="text-xs font-bold text-white mb-1 line-clamp-1">${inc.title}</div>
+            <div class="text-[11px] text-slate-400 line-clamp-2 leading-relaxed mb-2">${inc.summary}</div>
+
+            <div class="flex items-center justify-between text-[10px] font-mono pt-2 border-t border-navy-800/70 text-slate-400">
+              <span class="flex items-center">
+                <i data-lucide="shield-check" class="w-3 h-3 text-emerald-400 mr-1"></i> Credibility: <strong class="text-slate-200 ml-1">${inc.credibility}</strong>
+              </span>
+              <span class="text-slate-500">${inc.sources.length} Sources Aggregated</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    // --- SELECT INCIDENT AND RENDER DETAIL PANEL (RIGHT COLUMN) ---
+    function selectIncidentById(id) {
+      const inc = currentIncidents.find(i => i.id === id);
+      if (!inc) return;
+
+      selectedIncident = inc;
+      renderIncidentFeed(); // Updates highlight state
+      renderDetailPanel(inc);
+
+      // Pan map smoothly to marker
+      if (leafletMap && mapMarkers[inc.id]) {
+        leafletMap.flyTo([inc.lat, inc.lng], 13, { duration: 0.8 });
+        mapMarkers[inc.id].openPopup();
+      }
+    }
+
+    function renderDetailPanel(inc) {
+      const panel = document.getElementById('detail-panel-body');
+      if (!inc) {
+        panel.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">Select an incident to view details.</div>`;
+        return;
+      }
+
+      let fakeAlertBox = '';
+      if (inc.isFake) {
+        fakeAlertBox = `
+          <div class="p-3.5 rounded-xl bg-crimson-500/10 border border-crimson-500/40 text-crimson-400 mb-4">
+            <div class="font-bold flex items-center space-x-1.5 text-xs mb-1">
+              <i data-lucide="alert-triangle" class="w-4 h-4 text-crimson-500"></i>
+              <span>FLAGGED AS FAKE / MISLEADING BY AI AGENT</span>
+            </div>
+            <div class="text-[11px] text-slate-300 leading-relaxed font-mono">${inc.fakeReason}</div>
+          </div>
+        `;
+      }
+
+      const sourcesList = inc.sources.map(s => `
+        <div class="flex items-center justify-between text-xs py-1 border-b border-navy-800/60 font-mono">
+          <span class="text-slate-300 flex items-center">
+            <i data-lucide="${s.type === 'social' ? 'twitter' : s.type === 'helpline' ? 'phone-call' : 'cloud-rain'}" class="w-3.5 h-3.5 text-amber-400 mr-2"></i>
+            ${s.name}
+          </span>
+          <span class="text-slate-500 text-[10px]">${s.time}</span>
+        </div>
+      `).join('');
+
+      panel.innerHTML = `
+        ${fakeAlertBox}
+
+        <!-- Header Info -->
+        <div>
+          <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 mb-1">
+            <span class="text-amber-400 font-bold">${inc.id}</span>
+            <span>${inc.city} &bull; ${inc.timestamp}</span>
+          </div>
+          <h4 class="text-base font-extrabold text-white mb-2 leading-snug">${inc.title}</h4>
+          <div class="text-xs text-slate-400 flex items-center mb-3">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5 text-cyan-400 mr-1 flex-shrink-0"></i>
+            <span>${inc.address}</span>
+          </div>
+        </div>
+
+        <!-- Scores Grid -->
+        <div class="grid grid-cols-2 gap-2 text-center font-mono">
+          <div class="p-2.5 rounded-lg bg-navy-950 border border-navy-800">
+            <div class="text-[10px] text-slate-400">SEVERITY INDEX</div>
+            <div class="text-lg font-black ${inc.severity === 'CRITICAL' ? 'text-crimson-500' : 'text-amber-400'}">${inc.severityScore} / 100</div>
+            <div class="text-[9px] text-slate-500">${inc.severity} PRIORITY</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-navy-950 border border-navy-800">
+            <div class="text-[10px] text-slate-400">CREDIBILITY SCORE</div>
+            <div class="text-lg font-black ${parseInt(inc.credibility) < 50 ? 'text-crimson-400' : 'text-emerald-400'}">${inc.credibility}</div>
+            <div class="text-[9px] text-slate-500">${parseInt(inc.credibility) < 50 ? 'UNVERIFIED' : 'CROSS-VERIFIED'}</div>
+          </div>
+        </div>
+
+        <!-- AI Action Plan Box -->
+        <div class="p-3.5 rounded-xl bg-navy-950 border border-amber-500/30 relative">
+          <div class="flex items-center justify-between text-xs font-mono font-bold text-amber-400 mb-2.5 pb-2 border-b border-navy-800">
+            <span class="flex items-center"><i data-lucide="bot" class="w-3.5 h-3.5 mr-1.5"></i> AI RESPONDER BRIEF</span>
+            <span class="text-[10px] text-emerald-400">ETA: ${inc.actionPlan.estimatedResponseTime}</span>
+          </div>
+
+          <div class="space-y-2.5 text-xs">
+            <div>
+              <span class="text-[10px] font-mono text-slate-400 block uppercase">Recommended Units:</span>
+              <strong class="text-white text-xs">${inc.actionPlan.recommendedDispatch}</strong>
+            </div>
+
+            <div>
+              <span class="text-[10px] font-mono text-slate-400 block uppercase">Priority Execution Order:</span>
+              <p class="text-amber-200/90 text-[11px] leading-relaxed font-mono">${inc.actionPlan.priorityOrder}</p>
+            </div>
+
+            <div>
+              <span class="text-[10px] font-mono text-slate-400 block uppercase">Required Equipment & Rations:</span>
+              <p class="text-slate-300 text-[11px]">${inc.actionPlan.resourcesNeeded}</p>
+            </div>
+
+            <div>
+              <span class="text-[10px] font-mono text-slate-400 block uppercase">Identified Hazard Corridor:</span>
+              <p class="text-crimson-400 text-[11px] font-mono">${inc.actionPlan.hazards}</p>
+            </div>
+
+            <div class="pt-2 border-t border-navy-800 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+              <span>Commander: ${inc.actionPlan.assignedCommander}</span>
+              <span class="text-emerald-400 font-bold">READY TO DISPATCH</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ingested Sources List -->
+        <div>
+          <div class="text-xs font-mono font-bold text-slate-400 mb-2 uppercase flex items-center">
+            <i data-lucide="database" class="w-3.5 h-3.5 mr-1.5 text-cyan-400"></i> Ingested Signal Streams (${inc.sources.length})
+          </div>
+          <div class="bg-navy-950 p-2.5 rounded-xl border border-navy-800 space-y-1">
+            ${sourcesList}
+          </div>
+        </div>
+      `;
+
+      lucide.createIcons();
+    }
+
+    // --- EXPORT ACTION PLAN FUNCTION ---
+    function exportActionPlan() {
+      if (!selectedIncident) return;
+      const inc = selectedIncident;
+      const exportText = `=====================================================
+RESQ-MESH CRISIS COMMAND CENTRE - TACTICAL DISPATCH PLAN
+=====================================================
+INCIDENT ID: ${inc.id}
+TITLE:       ${inc.title}
+CATEGORY:    ${inc.type} | CITY: ${inc.city}
+LOCATION:    ${inc.address} (GPS: ${inc.lat}, ${inc.lng})
+TIMESTAMP:   ${inc.timestamp}
+SEVERITY:    ${inc.severity} (${inc.severityScore} / 100)
+CREDIBILITY: ${inc.credibility} (Merged Duplicates: ${inc.mergedDuplicates})
+STATUS:      ${inc.isFake ? 'FLAGGED AS FAKE' : 'AUTHORIZED FOR DISPATCH'}
+-----------------------------------------------------
+AI RECOMMENDED DISPATCH:
+${inc.actionPlan.recommendedDispatch}
+
+EXECUTION PROTOCOL (PRIORITY ORDER):
+${inc.actionPlan.priorityOrder}
+
+RESOURCES ALLOCATED:
+${inc.actionPlan.resourcesNeeded}
+
+ESTIMATED RESPONSE TIME:
+${inc.actionPlan.estimatedResponseTime}
+
+IDENTIFIED HAZARDS & EVACUATION PERIMETER:
+${inc.actionPlan.hazards}
+
+ASSIGNED COMMANDER:
+${inc.actionPlan.assignedCommander}
+-----------------------------------------------------
+GENERATED BY RESQ-MESH AUTONOMOUS AGENT FLEET
+DISASTER & PUBLIC SAFETY TRACK - HACK2SKILL 2026
+=====================================================`;
+
+      const blob = new Blob([exportText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ResQ-Mesh-ActionPlan-${inc.id}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // --- SIMULATE NEW INCIDENT ANIMATED PIPELINE ---
+    function triggerSimulation() {
+      document.getElementById('simulation-modal').classList.remove('hidden');
+      document.getElementById('sim-result-banner').classList.add('hidden');
+
+      // Reset all steps
+      for (let i = 1; i <= 5; i++) {
+        const step = document.getElementById(`sim-step-${i}`);
+        step.className = 'p-3.5 rounded-xl border border-navy-700 bg-navy-950/70 flex items-center justify-between transition-all';
+        step.querySelector('.step-status').innerText = 'Queued';
+        step.querySelector('.step-status').className = 'step-status text-xs font-mono text-slate-400';
+      }
+
+      // Step 1: Collector
+      setTimeout(() => {
+        const s1 = document.getElementById('sim-step-1');
+        s1.className = 'p-3.5 rounded-xl border border-cyan-500/50 bg-cyan-950/30 flex items-center justify-between transition-all';
+        s1.querySelector('.step-status').innerHTML = '<span class="text-cyan-400 animate-pulse font-bold">Ingesting...</span>';
+      }, 500);
+
+      // Step 2: Verifier
+      setTimeout(() => {
+        const s1 = document.getElementById('sim-step-1');
+        s1.querySelector('.step-status').innerHTML = '<span class="text-emerald-400 font-bold">Done (0.7s)</span>';
+
+        const s2 = document.getElementById('sim-step-2');
+        s2.className = 'p-3.5 rounded-xl border border-amber-500/50 bg-amber-950/30 flex items-center justify-between transition-all';
+        s2.querySelector('.step-status').innerHTML = '<span class="text-amber-400 animate-pulse font-bold">Verifying...</span>';
+      }, 1400);
+
+      // Step 3: Deduplicator
+      setTimeout(() => {
+        const s2 = document.getElementById('sim-step-2');
+        s2.querySelector('.step-status').innerHTML = '<span class="text-emerald-400 font-bold">Verified 97% (0.6s)</span>';
+
+        const s3 = document.getElementById('sim-step-3');
+        s3.className = 'p-3.5 rounded-xl border border-cyan-500/50 bg-cyan-950/30 flex items-center justify-between transition-all';
+        s3.querySelector('.step-status').innerHTML = '<span class="text-cyan-400 animate-pulse font-bold">Clustering...</span>';
+      }, 2300);
+
+      // Step 4: Severity Triage
+      setTimeout(() => {
+        const s3 = document.getElementById('sim-step-3');
+        s3.querySelector('.step-status').innerHTML = '<span class="text-emerald-400 font-bold">Merged 3 Calls (0.5s)</span>';
+
+        const s4 = document.getElementById('sim-step-4');
+        s4.className = 'p-3.5 rounded-xl border border-crimson-500/50 bg-crimson-950/30 flex items-center justify-between transition-all';
+        s4.querySelector('.step-status').innerHTML = '<span class="text-crimson-400 animate-pulse font-bold">Scoring...</span>';
+      }, 3100);
+
+      // Step 5: Action Planner
+      setTimeout(() => {
+        const s4 = document.getElementById('sim-step-4');
+        s4.querySelector('.step-status').innerHTML = '<span class="text-crimson-400 font-bold">CRITICAL 96 (0.4s)</span>';
+
+        const s5 = document.getElementById('sim-step-5');
+        s5.className = 'p-3.5 rounded-xl border border-emerald-500/50 bg-emerald-950/30 flex items-center justify-between transition-all';
+        s5.querySelector('.step-status').innerHTML = '<span class="text-emerald-400 animate-pulse font-bold">Synthesizing SOP...</span>';
+      }, 3900);
+
+      // Completed
+      setTimeout(() => {
+        const s5 = document.getElementById('sim-step-5');
+        s5.querySelector('.step-status').innerHTML = '<span class="text-emerald-400 font-bold">Plan Ready (0.6s)</span>';
+        document.getElementById('sim-result-banner').classList.remove('hidden');
+
+        // Append simulated incident to live list
+        injectSimulatedIncident();
+      }, 4700);
+    }
+
+    let simulatedIncidentObj = null;
+
+    function injectSimulatedIncident() {
+      const newId = `INC-${Math.floor(1000 + Math.random() * 9000)}`;
+      simulatedIncidentObj = {
+        id: newId,
+        title: "⚡ LIVE SIMULATION: Coastal Embankment Breached near Worli Seaface",
+        type: "Flood",
+        city: "Mumbai",
+        lat: 19.0176,
+        lng: 72.8150,
+        address: "Khan Abdul Ghaffar Khan Road, Worli, Mumbai",
+        severity: "CRITICAL",
+        severityScore: 96,
+        credibility: "97%",
+        isFake: false,
+        fakeReason: null,
+        mergedDuplicates: 3,
+        timestamp: "Just Now (Simulated)",
+        sources: [
+          { name: "Live Twitter Ingestion Stream", type: "social", time: "Just Now" },
+          { name: "Mumbai Police 112 Ingestion Webhook", type: "helpline", time: "Just Now" }
+        ],
+        summary: "High tidal swell coupled with intense squall breached a 15-meter seawall section. Seawater inundating arterial road with 3 trapped passenger vehicles. Power line severed sparking on pavement.",
+        actionPlan: {
+          recommendedDispatch: "Worli Coastal Police Patrol + BMC Storm Drain Rapid Taskforce + 2 Tow Trucks",
+          priorityOrder: "1. Divert traffic off Worli Seaface -> 2. Evacuate passengers to Sea Face promenade -> 3. Isolate downed power feeder",
+          resourcesNeeded: "Flood barriers, 4 Tow Chains, 3 Portable generators, Medical First Aid Unit",
+          estimatedResponseTime: "4 - 5 Minutes",
+          hazards: "Severe tidal washback, live severed high-tension cable",
+          assignedCommander: "Inspector S. Kadam (Worli Coastal Division)"
+        }
+      };
+
+      currentIncidents.unshift(simulatedIncidentObj);
+      selectedIncident = simulatedIncidentObj;
+      applyFilters();
+    }
+
+    function viewSimulatedIncident() {
+      closeSimulationModal();
+      switchView('dashboard');
+      if (simulatedIncidentObj) {
+        selectIncidentById(simulatedIncidentObj.id);
+      }
+    }
+
+    function closeSimulationModal() {
+      document.getElementById('simulation-modal').classList.add('hidden');
+    }
+
+    // --- AGENT ACTIVITY LOGS ---
+    function initAgentLogs() {
+      const terminal = document.getElementById('agent-log-terminal');
+      if (!terminal || terminal.children.length > 0) return;
+
+      const mockLogs = [
+        `[18:18:02] [COLLECTOR] Ingested 14 raw distress tweets (keywords: #MumbaiRains, #DadarFlood)`,
+        `[18:18:03] [VERIFIER]  Cross-checking image hash: 9a8f2c... matched against BMC live CCTV Dadar TT`,
+        `[18:18:04] [VERIFIER]  Authenticity verified: 96.2% confidence. No synthetic generation detected.`,
+        `[18:18:05] [DEDUP]     Spatio-temporal clustering: Merged 6 calls within 280m radius into INC-901`,
+        `[18:18:06] [TRIAGE]    Evaluating MILS: Transformer hazard detected -> Severity promoted to CRITICAL 94`,
+        `[18:18:07] [PLANNER]   Synthesized Tactical Dispatch Brief: Dispatched NDRF 5th Battalion (ETA: 7 mins)`,
+        `[18:18:10] [COLLECTOR] Ingested 1 Twitter video claiming India Gate subway flooded`,
+        `[18:18:11] [VERIFIER]  Deepfake detection: Stable Diffusion latent noise signature detected!`,
+        `[18:18:12] [VERIFIER]  FLAGGED AS HOAX (INC-906) - Reason: AI Synthetic Visual Artifacts. Discarded dispatch.`
+      ];
+
+      terminal.innerHTML = mockLogs.map(l => {
+        let color = 'text-slate-300';
+        if (l.includes('[COLLECTOR]')) color = 'text-cyan-400';
+        else if (l.includes('[VERIFIER]')) color = 'text-amber-400';
+        else if (l.includes('[DEDUP]')) color = 'text-cyan-300';
+        else if (l.includes('[TRIAGE]')) color = 'text-crimson-400';
+        else if (l.includes('[PLANNER]')) color = 'text-emerald-400';
+        return `<div class="${color}">${l}</div>`;
+      }).join('');
+    }
+
+    function clearAgentLogs() {
+      const terminal = document.getElementById('agent-log-terminal');
+      if (terminal) terminal.innerHTML = `<div class="text-slate-500">[Agent log terminal cleared. Listening for live events...]</div>`;
+    }
+
+    // --- ANALYTICS CHARTS (CHART.JS) ---
+    function initAnalyticsCharts() {
+      if (charts.types) return; // Already initialized
+
+      Chart.defaults.color = '#94A3B8';
+      Chart.defaults.font.family = 'Inter, sans-serif';
+
+      // 1. Incidents by Category
+      const ctx1 = document.getElementById('chart-incident-types');
+      if (ctx1) {
+        charts.types = new Chart(ctx1, {
+          type: 'doughnut',
+          data: {
+            labels: ['Floods', 'Fires', 'Accidents', 'Structural'],
+            datasets: [{
+              data: [8, 5, 5, 4],
+              backgroundColor: ['#00F2FE', '#FF9500', '#FF3B30', '#FACC15'],
+              borderColor: '#0A1128',
+              borderWidth: 3
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'right' }
+            }
+          }
+        });
+      }
+
+      // 2. Severity Triage Distribution
+      const ctx2 = document.getElementById('chart-severity');
+      if (ctx2) {
+        charts.severity = new Chart(ctx2, {
+          type: 'bar',
+          data: {
+            labels: ['Critical (P1)', 'High (P2)', 'Medium (P3)', 'Low (P4)'],
+            datasets: [{
+              label: 'Active Incidents',
+              data: [7, 6, 4, 5],
+              backgroundColor: ['#FF3B30', '#FF9500', '#FACC15', '#10B981'],
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { grid: { color: '#1E293B' } },
+              x: { grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // 3. Response Time Benchmark
+      const ctx3 = document.getElementById('chart-response-time');
+      if (ctx3) {
+        charts.resp = new Chart(ctx3, {
+          type: 'bar',
+          data: {
+            labels: ['Triage & Verification', 'Deduplication', 'Action Plan Generation', 'Total Dispatch Lag'],
+            datasets: [
+              {
+                label: 'Traditional Manual CAD (mins)',
+                data: [14.5, 8.2, 5.0, 27.7],
+                backgroundColor: '#334155'
+              },
+              {
+                label: 'ResQ-Mesh AI Multi-Agent (secs)',
+                data: [1.8, 0.8, 1.6, 4.2],
+                backgroundColor: '#00F2FE'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { grid: { color: '#1E293B' }, title: { display: true, text: 'Time Duration' } },
+              x: { grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // 4. Ingestion Funnel
+      const ctx4 = document.getElementById('chart-filter-funnel');
+      if (ctx4) {
+        charts.funnel = new Chart(ctx4, {
+          type: 'line',
+          data: {
+            labels: ['18:00', '18:10', '18:20', '18:30', '18:40', '18:50'],
+            datasets: [
+              {
+                label: 'Raw Signals Received',
+                data: [180, 240, 310, 420, 380, 490],
+                borderColor: '#94A3B8',
+                backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                fill: true,
+                tension: 0.3
+              },
+              {
+                label: 'Verified Unique Incidents',
+                data: [12, 16, 21, 24, 22, 28],
+                borderColor: '#FF3B30',
+                backgroundColor: 'rgba(255, 59, 48, 0.2)',
+                fill: true,
+                tension: 0.3
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { grid: { color: '#1E293B' } },
+              x: { grid: { color: '#1E293B' } }
+            }
+          }
+        });
+      }
+    }
+
+    // --- INITIALIZATION ON PAGE LOAD ---
+    window.addEventListener('DOMContentLoaded', () => {
+      // Initialize view
+      switchView('dashboard');
+      initMap();
+      renderIncidentFeed();
+      renderDetailPanel(selectedIncident);
+      updateCounters();
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
+
